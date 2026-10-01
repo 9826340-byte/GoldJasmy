@@ -61,6 +61,20 @@
     return str === '0.00' ? str : (neg ? '-' : '+') + str;
   }
 
+  // exact decimal string -> 2 dp, half-up (display of a stored 18-dp value)
+  function round2(s) {
+    var p = parseDec(s);
+    return divRound(p.i, 10n ** BigInt(p.s), 2);
+  }
+
+  // coins to drop when the gold value rose from prev18 to next18 (as displayed, >= 0.01 g): 3..7; otherwise 0
+  function coinCount(prev18, next18) {
+    var d = diff2(next18, prev18);
+    if (d.charAt(0) !== '+') return 0;
+    var rel = parseFloat(d) / Math.max(parseFloat(prev18), 1e-9);
+    return Math.max(3, Math.min(7, 3 + Math.round(rel * 400)));
+  }
+
   function groupThousands(s) {
     var parts = s.split('.');
     return parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',') + (parts[1] ? '.' + parts[1] : '');
@@ -68,7 +82,7 @@
 
   var api = { GRAMS_PER_TROY_OUNCE: GRAMS_PER_TROY_OUNCE,
               parseDec: parseDec, goldGrams: goldGrams, groupThousands: groupThousands,
-              normalizeAmount: normalizeAmount, diff2: diff2 };
+              normalizeAmount: normalizeAmount, diff2: diff2, round2: round2, coinCount: coinCount };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.GoldCalc = api;
 })(this);

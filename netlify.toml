@@ -1,0 +1,4 @@
+# JASMY Gold on Netlify: static files only, no build step, no functions.
+# Only site/ is published; tests and developer tools stay out of the deployment.
+[build]
+  publish = "site"

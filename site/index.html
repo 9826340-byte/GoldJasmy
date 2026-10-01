@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#09090A">
+<meta name="description" content="Your JASMY holding, in grams of gold. Live prices; your amount never leaves your device.">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="JASMY Gold">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<!-- iOS launch images (dark, no white flash) -->
+<link rel="apple-touch-startup-image" href="splash/375x667@2.png" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="splash/414x896@2.png" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="splash/360x780@3.png" media="(device-width: 360px) and (device-height: 780px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="splash/375x812@3.png" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="splash/390x844@3.png" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="splash/393x852@3.png" media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="splash/402x874@3.png" media="(device-width: 402px) and (device-height: 874px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="splash/414x896@3.png" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="splash/428x926@3.png" media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="splash/430x932@3.png" media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="splash/440x956@3.png" media="(device-width: 440px) and (device-height: 956px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="stylesheet" href="app.css">
+<title>JASMY Gold</title>
+</head>
+<body>
+<div id="scene">
+  <div id="vault" aria-hidden="true"></div>
+  <div id="bar" aria-hidden="true"></div>
+  <div id="front" aria-hidden="true"></div>
+  <div class="result" id="result">
+    <div class="label" id="label">GOLD</div>
+    <div class="value" aria-live="polite"><span id="grams">—</span><span class="g">g</span></div>
+  </div>
+  <div class="holding" id="holdingRow"><button type="button" id="holding"><span class="jm"></span><span id="holdingText"></span><svg class="pen" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.8 2.6l2.6 2.6L5.6 13H3v-2.6z"/><path d="M9.4 4l2.6 2.6"/></svg></button></div>
+  <div class="status" id="statusRow"><button type="button" id="status"><span id="statusText"></span></button></div>
+</div>
+<canvas id="fx" aria-hidden="true"></canvas>
+
+<div id="sheet">
+  <form id="amountForm" autocomplete="off">
+    <h1 class="sheet-title" id="sheetTitle"></h1>
+    <label class="field-label" for="amount"><span class="jm"></span>JASMY</label>
+    <input id="amount" type="text" inputmode="decimal" spellcheck="false" enterkeyhint="done" placeholder="0">
+    <div class="hint" id="hint"></div>
+    <div class="error" id="amountError" aria-live="polite"></div>
+    <div class="actions"><button type="button" class="cancel" id="cancel"></button><button type="submit" class="save" id="save"></button></div>
+  </form>
+</div>
+
+<script src="calc.js"></script>
+<script src="vault-art.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

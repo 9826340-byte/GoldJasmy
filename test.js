@@ -1,7 +1,7 @@
 // node test.js — checks calc.js against values computed independently with .NET System.Decimal
 // ($usd = amount * jasmy; $g = $usd / (xau / 31.1034768)), using a neutral sample holding.
 const assert = require('assert');
-const C = require('./calc.js');
+const C = require('./site/calc.js');
 const AMOUNT = '1234567.89012345';
 
 const ref = [
@@ -47,5 +47,23 @@ assert.strictEqual(C.diff2('72.1', '72.41'), '-0.31');
 assert.strictEqual(C.diff2('72.1049', '72.1'), '0.00');
 assert.strictEqual(C.diff2('72.105', '72.1'), '+0.01');
 assert.strictEqual(C.diff2('55.884170354490713800', '0'), '+55.88');
+
+// display rounding of a stored value
+assert.strictEqual(C.round2('55.884170354490713800'), '55.88');
+assert.strictEqual(C.round2('72.105'), '72.11');
+assert.strictEqual(C.round2('72.104999999999999999'), '72.10');
+
+// falling coins: only for an increase that shows (>= 0.01 g), 3..7 coins
+assert.strictEqual(C.coinCount('128.350000000000000000', '128.350000000000000000'), 0);   // unchanged
+assert.strictEqual(C.coinCount('128.350000000000000000', '128.354000000000000000'), 0);   // +0.004 g: not visible
+assert.strictEqual(C.coinCount('128.350000000000000000', '128.100000000000000000'), 0);   // decreased
+assert.strictEqual(C.coinCount('128.350000000000000000', '128.360000000000000000'), 3);   // +0.01 g
+assert.strictEqual(C.coinCount('128.350000000000000000', '128.850000000000000000'), 5);   // +0.39 %
+assert.strictEqual(C.coinCount('128.350000000000000000', '140.000000000000000000'), 7);   // large rise: capped
+for (let i = 0; i < 200; i++) {
+  const a = (Math.random() * 500).toFixed(18), b = (Math.random() * 500).toFixed(18), n = C.coinCount(a, b);
+  assert.ok(n === 0 || (n >= 3 && n <= 7));
+  if (parseFloat(b) <= parseFloat(a)) assert.strictEqual(n, 0);
+}
 
 console.log('all calculation tests passed');

@@ -1,6 +1,7 @@
 // Caches only the app shell. Price requests (other origins) are never intercepted or cached.
-const CACHE = 'gold-shell-v5';
-const SHELL = ['./', 'index.html', 'calc.js', 'art.js', 'vault.js', 'brand/jasmy-mark.png', 'manifest.webmanifest', 'icon-180.png', 'icon-192.png', 'icon-512.png'];
+const CACHE = 'gold-shell-v6';
+const SHELL = ['./', 'index.html', 'app.css', 'app.js', 'calc.js', 'vault-art.js', 'brand/jasmy-mark.png',
+               'manifest.webmanifest', 'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));

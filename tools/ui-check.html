@@ -1,0 +1,105 @@
+<!doctype html>
+<!-- Dev-only UI validation: open http://localhost:8731/tools/ui-check.html (node tools/dev-server.js).
+     Runs the real app (site/index.html) in a frame with controlled price responses and reports JSON.
+     Not deployed: only site/ is published. -->
+<meta charset="utf-8">
+<title>JASMY Gold UI check</title>
+<body style="background:#222;color:#ddd;font:12px monospace;margin:0;display:flex;gap:16px">
+<iframe id="f" style="width:390px;height:844px;border:0;flex:none"></iframe>
+<pre id="out" style="padding:12px;white-space:pre-wrap"></pre>
+<script src="/calc.js"></script>
+<script>
+var M = window.M = { jasmy: '0.0043', gold: '4150.5', failGold: false, lang: null, net: [] };
+var MOCK = '<script>(function(){var M=parent.M,rf=window.fetch;' +
+  'window.requestAnimationFrame=function(cb){return setTimeout(function(){cb(performance.now());},16);};window.cancelAnimationFrame=function(id){clearTimeout(id);};' +
+  'if(M.lang)Object.defineProperty(navigator,"languages",{get:function(){return [M.lang];}});' +
+  'function resp(o){return Promise.resolve(new Response(JSON.stringify(o),{status:200,headers:{"Content-Type":"application/json"}}));}' +
+  'window.fetch=function(u,o){u=String(u);M.net.push({url:u,method:(o&&o.method)||"GET",body:o&&o.body?String(o.body):null});' +
+  'if(u.indexOf("api.exchange.coinbase.com")>=0)return resp({price:M.jasmy,time:new Date().toISOString()});' +
+  'if(u.indexOf("api.gold-api.com")>=0)return M.failGold?Promise.reject(new TypeError("offline")):resp({symbol:"XAU",currency:"USD",price:Number(M.gold),updatedAt:new Date().toISOString()});' +
+  'if(u.indexOf("api.kraken.com")>=0)return Promise.reject(new TypeError("unused"));' +
+  'return rf.apply(this,arguments);};})();<\/script>';
+var wait = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
+var F = document.getElementById('f');
+function boot() {
+  return fetch('/index.html?' + Date.now()).then(function (r) { return r.text(); }).then(function (html) {
+    return new Promise(function (res) {
+      F.onload = function () { res(F.contentDocument); };
+      F.srcdoc = html.replace('<head>', '<head><base href="/">' + MOCK);
+    });
+  });
+}
+function D() { return F.contentDocument; }
+function G(j, x) { return GoldCalc.goldGrams(j, x, '2890000'); }
+function coinPixels() {
+  var c = D().getElementById('fx');
+  if (c.width === 300 && c.height === 150) return 0;   // never sized: no animation ran
+  var d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data, n = 0;
+  for (var i = 3; i < d.length; i += 4) if (d[i] > 0) n++;
+  return n;
+}
+function state() {
+  var d = D();
+  return { grams: d.getElementById('grams').textContent, stale: d.body.classList.contains('stale'),
+           status: d.getElementById('statusText').textContent, statusColor: getComputedStyle(d.getElementById('status')).color,
+           holding: d.getElementById('holdingText').textContent };
+}
+(async function () {
+  var R = {};
+  localStorage.clear();
+  var g0 = G(M.jasmy, M.gold);
+  // 1. unchanged since the previous opening -> no animation
+  localStorage.setItem('jasmyGold.holding.v3', JSON.stringify({ amount: '2890000', seen: { grams18: g0.grams18, at: Date.now() } }));
+  await boot(); await wait(900); var p1 = coinPixels(); await wait(700);
+  R.unchanged = Object.assign(state(), { expected: g0.grams2, coinPixelsAt900ms: p1, coinPixelsAt1600ms: coinPixels() });
+  // 2. decreased -> no animation, no red, only the new amount
+  M.jasmy = '0.0041'; var g1 = G(M.jasmy, M.gold);
+  await boot(); await wait(900); var p2 = coinPixels(); await wait(700);
+  R.decreased = Object.assign(state(), { expected: g1.grams2, coinPixelsAt900ms: p2, coinPixelsAt1600ms: coinPixels() });
+  // 3. increased -> falling coins once, then the exact new amount
+  M.jasmy = '0.0044'; var g2 = G(M.jasmy, M.gold);
+  await boot(); await wait(250); var shownAtStart = D().getElementById('grams').textContent;
+  var maxPx = 0, seenAt = [], midNumber = null;
+  for (var k = 0; k < 40; k++) {
+    await wait(100); var px = coinPixels(); if (px > maxPx) maxPx = px; if (px > 0) seenAt.push((k + 1) * 100 + 250);
+    if (k === 9) midNumber = D().getElementById('grams').textContent;
+  }
+  R.increased = Object.assign(state(), { expected: g2.grams2, startedFrom: shownAtStart, previous: g1.grams2, numberAt1250ms: midNumber,
+                                         coinPixelsMax: maxPx, coinsVisibleFromMs: seenAt[0], coinsVisibleUntilMs: seenAt[seenAt.length - 1],
+                                         coinPixelsAfter: coinPixels() });
+  // 3b. a further rise on a routine refresh (same opening) -> no second animation
+  M.jasmy = '0.0046'; var g3 = G(M.jasmy, M.gold);
+  D().getElementById('status').click(); await wait(900);
+  R.secondRiseSameOpening = Object.assign(state(), { expected: g3.grams2, coinPixels: coinPixels() });
+  // 4. a source fails -> last valid value stays, marked stale; never a mixed value
+  M.failGold = true; M.jasmy = '0.0099';
+  D().getElementById('status').click(); await wait(900);
+  R.goldSourceFails = Object.assign(state(), { mustStillShow: g3.grams2 });
+  M.failGold = false;
+  // 5. edit the holding -> new value at once, persisted, no coins
+  D().getElementById('holding').click(); await wait(300);
+  var inp = D().getElementById('amount'); R.editPrefill = inp.value;
+  inp.value = '3,100,000'; D().getElementById('amountForm').requestSubmit(); R.editRejectsGroupedCommas = D().getElementById('amountError').textContent;
+  inp.value = '3100000'; D().getElementById('amountForm').requestSubmit(); await wait(900);
+  var g4 = GoldCalc.goldGrams('0.0099', M.gold, '3100000');
+  R.edited = Object.assign(state(), { expected: g4.grams2, coinPixels: coinPixels(), stored: JSON.parse(localStorage.getItem('jasmyGold.holding.v3')).amount });
+  await boot(); await wait(900);
+  R.reopenAfterEdit = Object.assign(state(), { sheetOpen: D().getElementById('sheet').classList.contains('open') });
+  // 6. Japanese device locale
+  M.lang = 'ja-JP'; await boot(); await wait(600);
+  R.japanese = { lang: D().documentElement.lang, label: D().getElementById('label').textContent, status: D().getElementById('statusText').textContent,
+                 save: D().getElementById('save').textContent, cancel: D().getElementById('cancel').textContent };
+  M.lang = 'ru-RU'; await boot(); await wait(600);
+  R.otherLocaleFallsBackToEnglish = { lang: D().documentElement.lang, label: D().getElementById('label').textContent };
+  M.lang = null;
+  // 7. network: every request the app made
+  var hosts = {}; M.net.forEach(function (n) { var u = new URL(n.url, location.href); hosts[u.origin] = (hosts[u.origin] || 0) + 1; });
+  R.network = { requests: M.net.length, origins: hosts, anyBody: M.net.some(function (n) { return n.body; }),
+                anyNonGet: M.net.some(function (n) { return n.method !== 'GET'; }),
+                mentionsHoldingOrGrams: M.net.some(function (n) { return /2890000|3100000|grams|portfolio/i.test(n.url + (n.body || '')); }) };
+  R.storage = Object.keys(localStorage);
+  document.getElementById('out').textContent = JSON.stringify(R, null, 1);
+  document.title = 'done';
+  window.RESULT = R;
+})();
+</script>

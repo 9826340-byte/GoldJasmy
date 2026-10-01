@@ -1,0 +1,42 @@
+<!doctype html>
+<!-- Dev-only: renders the real app (site/index.html) at an exact phone size with sample prices, for screenshots.
+     /tools/shot.html?w=390&h=844&state=normal|increase|edit|first|stale&lang=en|ja -->
+<meta charset="utf-8">
+<title>shot</title>
+<body style="margin:0;background:#2A2A2C;display:flex;justify-content:center;padding:20px 0">
+<div style="border-radius:50px;background:#111;padding:11px;box-shadow:0 0 0 1px #3A3A3D inset">
+  <div id="scr" style="border-radius:40px;overflow:hidden"><iframe id="f" style="border:0;display:block"></iframe></div>
+</div>
+<script src="/calc.js"></script>
+<script>
+var q = new URLSearchParams(location.search), w = +q.get('w') || 390, h = +q.get('h') || 844, st = q.get('state') || 'normal';
+var M = window.M = { jasmy: '0.0044', gold: '4150.5', failGold: st === 'stale', lang: q.get('lang') === 'ja' ? 'ja-JP' : 'en-US' };
+var F = document.getElementById('f'); F.width = w; F.height = h; F.style.width = w + 'px'; F.style.height = h + 'px';
+var MOCK = '<script>(function(){var M=parent.M,rf=window.fetch;' +
+  'Object.defineProperty(navigator,"languages",{get:function(){return [M.lang];}});' +
+  'window.requestAnimationFrame=function(cb){return setTimeout(function(){cb(performance.now());},16);};window.cancelAnimationFrame=function(id){clearTimeout(id);};' +
+  'function resp(o){return Promise.resolve(new Response(JSON.stringify(o),{status:200,headers:{"Content-Type":"application/json"}}));}' +
+  'window.fetch=function(u,o){u=String(u);' +
+  'if(u.indexOf("api.exchange.coinbase.com")>=0)return resp({price:M.jasmy,time:new Date().toISOString()});' +
+  'if(u.indexOf("api.gold-api.com")>=0)return M.failGold?Promise.reject(new TypeError("offline")):resp({symbol:"XAU",currency:"USD",price:Number(M.gold),updatedAt:new Date().toISOString()});' +
+  'if(u.indexOf("api.kraken.com")>=0)return Promise.reject(new TypeError("unused"));' +
+  'return rf.apply(this,arguments);};})();<\/script>';
+localStorage.clear();
+var now = GoldCalc.goldGrams(M.jasmy, M.gold, '2890000');
+if (st !== 'first') {
+  var seen = st === 'increase' ? GoldCalc.goldGrams('0.0043', M.gold, '2890000').grams18 : now.grams18;
+  localStorage.setItem('jasmyGold.holding.v3', JSON.stringify({ amount: '2890000', seen: { grams18: seen, at: Date.now() - 3600e3 } }));
+  if (st === 'stale') localStorage.setItem('jasmyGold.quotes.v3', JSON.stringify({
+    jasmy: { price: M.jasmy, time: Date.now() - 3600e3, source: 'coinbase' }, gold: { price: M.gold, time: Date.now() - 3600e3, source: 'gold-api.com' },
+    computedAt: Date.now() - 3600e3 }));
+}
+fetch('/index.html').then(function (r) { return r.text(); }).then(function (html) {
+  F.onload = function () {
+    if (st === 'edit') setTimeout(function () {
+      F.contentDocument.getElementById('holding').click();
+      setTimeout(function () { F.contentDocument.getElementById('amount').blur(); }, 400);
+    }, 600);
+  };
+  F.srcdoc = html.replace('<head>', '<head><base href="/">' + MOCK);
+});
+</script>
