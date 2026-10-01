@@ -1,5 +1,5 @@
 // Caches only the app shell. Price requests (other origins) are never intercepted or cached.
-const CACHE = 'gold-shell-v6';
+const CACHE = 'gold-shell-v7';
 const SHELL = ['./', 'index.html', 'app.css', 'app.js', 'calc.js', 'vault-art.js', 'brand/jasmy-mark.png',
                'manifest.webmanifest', 'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png'];
 

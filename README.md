@@ -48,7 +48,7 @@ the token. Not financial advice.
   rounding and coin-count rules
 - `tools/dev-server.js` — `node tools/dev-server.js`: local preview at http://localhost:8731 with the
   production headers
-- `tools/make-icons.html` — re-renders `site/icons/` and `site/splash/` from the vector artwork
+- `tools/make-icons.html` — re-renders `site/icons/` and `site/splash/` from the app icon `tools/app-icon-source.png` (cropped to its rounded square)
 - `tools/ui-check.html` — runs the app with controlled prices and reports first use, persistence,
   unchanged / decreased / increased behaviour, stale handling, editing, languages and all network requests
 - `tools/shot.html` — renders the app at exact phone sizes for screenshots

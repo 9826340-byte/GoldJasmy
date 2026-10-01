@@ -1,46 +1,50 @@
 <!doctype html>
 <!-- Dev tool: open http://localhost:8731/tools/make-icons.html (node tools/dev-server.js) to re-render
-     site/icons/*.png and site/splash/*.png from the vector artwork in site/vault-art.js. -->
+     site/icons/*.png and site/splash/*.png from the founder-supplied icon tools/app-icon-source.png
+     (872 x 832). Everything outside the gold-rimmed rounded square is cut away. -->
 <meta charset="utf-8">
 <title>Icon and launch-image renderer</title>
 <body style="background:#333;color:#ddd;font:13px sans-serif">
 <pre id="log"></pre>
-<script src="/vault-art.js"></script>
 <script>
 (async function () {
   const log = m => { document.getElementById('log').textContent += m + '\n'; };
-  const mark = await fetch('/brand/jasmy-mark.png').then(r => r.blob())
-    .then(b => new Promise(res => { const f = new FileReader(); f.onload = () => res(f.result); f.readAsDataURL(b); }));
-  const img = new Image();
-  img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(VaultArt.iconSVG(mark, 512));
-  await img.decode();
+  const src = new Image(); src.src = '/tools/app-icon-source.png'; await src.decode();
+  // the rounded square with the gold rim, measured on the source: x 31..767, y 67..803
+  const CROP = { x: 31, y: 67, s: 736 };
+  const RADIUS = 0.15;   // corner radius of that rounded square, as a share of its side
+  function draw(x, dx, dy, ds) {
+    x.imageSmoothingEnabled = true; x.imageSmoothingQuality = 'high';
+    x.drawImage(src, CROP.x, CROP.y, CROP.s, CROP.s, dx, dy, ds, ds);
+  }
   async function put(dir, name, canvas) {
     const r = await fetch('/save/' + dir + '/' + name, { method: 'POST', body: canvas.toDataURL('image/png') });
     log(dir + '/' + name + ': ' + await r.text());
   }
   function canvas(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
 
-  // app icons: full-bleed artwork (iOS rounds the corners itself)
-  for (const size of [180, 192, 512]) {
-    const c = canvas(size, size); c.getContext('2d').drawImage(img, 0, 0, size, size);
+  // iOS home screen: opaque square; iOS applies its own rounded mask
+  { const c = canvas(180, 180), x = c.getContext('2d'); x.fillStyle = '#000'; x.fillRect(0, 0, 180, 180); draw(x, 0, 0, 180);
+    await put('icons', 'icon-180.png', c); }
+  // Android / browser: the rounded square itself, transparent outside it
+  for (const size of [192, 512]) {
+    const c = canvas(size, size), x = c.getContext('2d');
+    x.beginPath(); x.roundRect(0, 0, size, size, size * RADIUS); x.clip(); draw(x, 0, 0, size);
     await put('icons', 'icon-' + size + '.png', c);
   }
-  // Android maskable: artwork at 80 % inside the safe zone on the same dark background
-  {
-    const c = canvas(512, 512), x = c.getContext('2d');
+  // Android maskable: the icon at 80 % inside the safe zone on a dark background
+  { const c = canvas(512, 512), x = c.getContext('2d');
     x.fillStyle = '#0A0A0B'; x.fillRect(0, 0, 512, 512);
-    x.drawImage(img, 51, 51, 410, 410);
-    await put('icons', 'icon-maskable-512.png', c);
-  }
+    x.save(); x.beginPath(); x.roundRect(51, 51, 410, 410, 410 * RADIUS); x.clip(); draw(x, 51, 51, 410); x.restore();
+    await put('icons', 'icon-maskable-512.png', c); }
   // iOS launch images: dark screen, the icon and the name (no white flash)
   const devices = [[375, 667, 2], [414, 896, 2], [360, 780, 3], [375, 812, 3], [390, 844, 3], [393, 852, 3],
                    [402, 874, 3], [414, 896, 3], [428, 926, 3], [430, 932, 3], [440, 956, 3]];
   for (const [w, h, d] of devices) {
     const c = canvas(w * d, h * d), x = c.getContext('2d');
     x.fillStyle = '#09090A'; x.fillRect(0, 0, c.width, c.height);
-    const s = 88 * d, cx = c.width / 2, cy = c.height * 0.45, r = 20 * d;
-    x.save(); x.beginPath(); x.roundRect(cx - s / 2, cy - s / 2, s, s, r); x.clip();
-    x.drawImage(img, cx - s / 2, cy - s / 2, s, s); x.restore();
+    const s = 88 * d, cx = c.width / 2, cy = c.height * 0.45;
+    x.save(); x.beginPath(); x.roundRect(cx - s / 2, cy - s / 2, s, s, s * RADIUS); x.clip(); draw(x, cx - s / 2, cy - s / 2, s); x.restore();
     x.fillStyle = '#8F887B'; x.font = (13 * d) + 'px Palatino, "Palatino Linotype", Georgia, serif';
     x.textAlign = 'center'; x.fillText('JASMY Gold', cx, cy + s / 2 + 30 * d);
     await put('splash', w + 'x' + h + '@' + d + '.png', c);
