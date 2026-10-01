@@ -1,0 +1,30 @@
+<!doctype html>
+<!-- Dev tool: open via the local dev server (it accepts POST /save/<name>.png) to re-render the icons. -->
+<meta charset="utf-8">
+<title>Icon renderer</title>
+<body style="background:#ddd;font:13px sans-serif">
+<div id="out"></div>
+<script src="art.js"></script>
+<script>
+(async function () {
+  const BG = '#FBF9F4';
+  // public build: no third-party trademark on the icon; the bar carries the "999.9 FINE GOLD" stamp
+  const svg = GoldArt.goldBarSVG({ id: 'ic', engrave: 'text' });
+  const img = new Image();
+  img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  await img.decode();
+
+  for (const size of [180, 192, 512]) {
+    const c = document.createElement('canvas'); c.width = c.height = size;
+    const x = c.getContext('2d');
+    x.fillStyle = BG; x.fillRect(0, 0, size, size);
+    // bar: 66% of the icon width, optically centred; stays inside the Android maskable safe zone
+    const w = size * 0.66, h = w * 112 / 200;
+    x.drawImage(img, (size - w) / 2, (size - h) / 2 + size * 0.01, w, h);
+    const r = await fetch('/save/icon-' + size + '.png', { method: 'POST', body: c.toDataURL('image/png') });
+    c.style.margin = '8px'; document.getElementById('out').appendChild(c);
+    document.getElementById('out').append(' icon-' + size + '.png: ' + await r.text());
+  }
+  document.title = 'done';
+})();
+</script>

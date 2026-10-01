@@ -1,0 +1,544 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light">
+<meta name="theme-color" content="#FBF9F4">
+<meta name="description" content="Your JASMY holding, in grams of gold. Live prices, nothing leaves your device.">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="JASMY Gold">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<title>JASMY Gold</title>
+<style>
+  :root {
+    --bg: #FBF9F4;
+    --ink: #1C1A17;
+    --label: #9A8A68;
+    --muted: #A8A39A;
+    --stale: #A0643C;
+    --up: #9A7424;
+    --jasmy: #F6921D;  /* official JASMY orange (jasmy.co.jp logo) */
+    --serif: ui-serif, "New York", "Iowan Old Style", "Hiragino Mincho ProN", Georgia, serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; background: var(--bg); }
+  body {
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Hiragino Sans", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-user-select: none; user-select: none;
+    overflow: hidden;
+  }
+  button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+
+  main {
+    min-height: 100vh; min-height: 100svh;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: env(safe-area-inset-top) 16px calc(56px + env(safe-area-inset-bottom));
+  }
+
+  /* holding line: official JASMY mark (tinted via mask) + amount; tap to edit */
+  .holding {
+    position: fixed; left: 0; right: 0;
+    top: calc(26px + env(safe-area-inset-top));
+    display: flex; justify-content: center;
+  }
+  .holding button {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12px; letter-spacing: .04em; color: var(--muted);
+    padding: 8px 12px; font-variant-numeric: tabular-nums;
+  }
+  .jmark {
+    width: 16px; height: 16px; flex: none; background: var(--jasmy);
+    -webkit-mask: url(brand/jasmy-mark.png) center / contain no-repeat;
+            mask: url(brand/jasmy-mark.png) center / contain no-repeat;
+  }
+  .first .holding { visibility: hidden; }
+
+  .bar { width: 112px; margin-bottom: 30px; transform-origin: 50% 80%; }
+  .bar svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .gb-shine { transform: translateX(-60px); animation: shine 9s ease-in-out 2.4s infinite; }
+  @keyframes shine { 0% { transform: translateX(-60px); } 14%, 100% { transform: translateX(240px); } }
+  .glint .gb-shine { animation: shine-once 1s ease-out; }
+  @keyframes shine-once { from { transform: translateX(-60px); } to { transform: translateX(240px); } }
+  .bar.pulse { animation: pulse .5s cubic-bezier(.3, 1.6, .5, 1); }
+  @keyframes pulse { 40% { transform: scale(1.045); } }
+
+  .value {
+    font-family: var(--serif);
+    font-weight: 400;
+    /* 54px on a 375pt iPhone, capped at 62px: larger phones get whitespace, not size */
+    font-size: clamp(40px, 14.4vw, 62px);
+    line-height: 1; letter-spacing: -0.01em;
+    font-variant-numeric: lining-nums tabular-nums;
+    white-space: nowrap; cursor: pointer;
+    transition: opacity .3s;
+  }
+  .unit { font-size: 0.42em; margin-left: 0.14em; }
+  .label {
+    margin-top: 18px;
+    font-size: 11px; font-weight: 500;
+    letter-spacing: 0.34em; text-indent: 0.34em;
+    color: var(--label);
+  }
+  .delta {
+    height: 18px; margin-top: 14px;
+    font-size: 13px; letter-spacing: .02em; color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    opacity: 0; transform: translateY(4px);
+    transition: opacity .6s, transform .6s;
+  }
+  .delta.show { opacity: 1; transform: none; }
+  .delta.up { color: var(--up); }
+
+  .stale .value { opacity: .45; }
+  .stale .bar { filter: grayscale(.6); opacity: .6; }
+
+  footer {
+    position: fixed; left: 0; right: 0;
+    bottom: calc(22px + env(safe-area-inset-bottom));
+    display: flex; justify-content: center;
+  }
+  #status {
+    font-size: 11px; letter-spacing: .02em; color: var(--muted);
+    padding: 10px 14px; font-variant-numeric: tabular-nums;
+  }
+  .stale #status { color: var(--stale); }
+  #status .r { display: inline-block; margin-left: 6px; opacity: .7; }
+  .loading #status .r { animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* entrance */
+  .holding, .bar, .value, .label, footer { animation: rise .9s cubic-bezier(.2, .7, .2, 1) both; }
+  .bar { animation-delay: .05s; }
+  .value { animation-delay: .15s; }
+  .label { animation-delay: .25s; }
+  .holding, footer { animation-delay: .4s; }
+  @keyframes rise { from { opacity: 0; transform: translateY(10px); } }
+
+  #fx { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5; }
+
+  /* holding editor */
+  #sheet {
+    position: fixed; inset: 0; z-index: 10;
+    display: flex; align-items: flex-end; justify-content: center;
+    background: rgba(28, 26, 23, .18);
+    opacity: 0; visibility: hidden; transition: opacity .25s, visibility 0s .25s;
+  }
+  #sheet.open { opacity: 1; visibility: visible; transition: opacity .25s; }
+  #sheet form {
+    width: 100%; max-width: 440px; background: var(--bg);
+    border-radius: 16px 16px 0 0;
+    padding: 26px 24px calc(18px + env(safe-area-inset-bottom));
+    transform: translateY(24px); transition: transform .3s cubic-bezier(.2, .8, .2, 1);
+    -webkit-user-select: text; user-select: text;
+  }
+  #sheet.open form { transform: none; }
+  #sheetTitle { display: none; font-family: var(--serif); font-size: 21px; font-weight: 400; margin-bottom: 20px; }
+  .first #sheetTitle { display: block; }
+  #sheet label {
+    display: flex; align-items: center; gap: 7px; margin-bottom: 10px;
+    font-size: 11px; font-weight: 500; letter-spacing: .3em; color: var(--label);
+  }
+  #amount {
+    width: 100%; border: 0; border-bottom: 1px solid #E4DED2; border-radius: 0;
+    background: none; color: var(--ink); outline: none;
+    font-family: var(--serif); font-size: 24px; padding: 6px 0 8px;
+    font-variant-numeric: lining-nums tabular-nums;
+  }
+  #amount:focus { border-bottom-color: var(--label); }
+  .hint { margin-top: 8px; font-size: 11px; color: var(--muted); }
+  #amountError { min-height: 16px; margin-top: 4px; font-size: 11px; color: var(--stale); }
+  .actions { display: flex; justify-content: space-between; margin-top: 8px; }
+  .actions button { font-size: 15px; padding: 10px 0; color: var(--muted); }
+  .actions button[type=submit] { color: var(--ink); font-weight: 500; margin-left: auto; }
+  .first #cancel { display: none; }
+  .disclaimer { margin-top: 14px; font-size: 10px; line-height: 1.5; color: #BDB8AE; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="holding"><button type="button" id="holding"><span class="jmark"></span><span id="holdingText"></span></button></div>
+<main id="app">
+  <div class="bar" id="bar" aria-hidden="true"></div>
+  <div class="value" id="value" role="button" tabindex="0"><span id="grams">—</span><span class="unit">g</span></div>
+  <div class="label" id="label">GOLD</div>
+  <div class="delta" id="delta" aria-live="polite"></div>
+</main>
+<canvas id="fx" aria-hidden="true"></canvas>
+<footer><button id="status" type="button"><span id="statusText"></span><span class="r">↻</span></button></footer>
+
+<div id="sheet">
+  <form id="amountForm" autocomplete="off">
+    <h1 id="sheetTitle"></h1>
+    <label for="amount"><span class="jmark"></span>JASMY</label>
+    <input id="amount" type="text" inputmode="decimal" spellcheck="false" enterkeyhint="done" placeholder="0">
+    <div class="hint" id="hint"></div>
+    <div id="amountError"></div>
+    <div class="actions"><button type="button" id="cancel"></button><button type="submit" id="save"></button></div>
+    <p class="disclaimer" id="disclaimer"></p>
+  </form>
+</div>
+
+<script src="calc.js"></script>
+<script src="art.js"></script>
+<script>
+(function () {
+  'use strict';
+  var REFRESH_MS = 45 * 1000;
+  var TIMEOUT_MS = 8000;
+  var MAX_QUOTE_AGE_MS = 15 * 60 * 1000;  // older quote time => result flagged stale
+  var AWAY_MS = 60 * 1000;                 // back after this long = a new visit
+  var STORE_KEY = 'jasmyGold.lastValid.v2';
+  var AMOUNT_KEY = 'jasmyGold.amount.v2';
+  var SEEN_KEY = 'jasmyGold.seen.v2';      // last fresh value the user saw (for "since last visit")
+  var reduceMotion = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ---------- language (phone language: Japanese, otherwise English) ----------
+  var L = {
+    en: {
+      gold: 'GOLD', loading: 'loading', noData: 'no live data',
+      updated: function (t) { return 'updated ' + t; },
+      stale: function (t) { return 'stale · updated ' + t; },
+      oldJasmy: function (t) { return 'JASMY quote ' + t; },
+      oldGold: function (t) { return 'gold quote ' + t; },
+      since: function (d) { return d + ' g since last visit'; },
+      title: 'How much JASMY do you hold?', hint: 'Stored only on this device.',
+      error: 'Enter a positive number', cancel: 'Cancel', save: 'Save',
+      edit: 'Change JASMY amount', refresh: 'Refresh',
+      disclaimer: 'Not affiliated with Jasmy Inc. Not financial advice. Prices: Coinbase, Kraken, gold-api.com.'
+    },
+    ja: {
+      gold: '純金換算', loading: '読み込み中', noData: '価格を取得できません',
+      updated: function (t) { return '最終更新 ' + t; },
+      stale: function (t) { return '未更新 · 最終更新 ' + t; },
+      oldJasmy: function (t) { return 'JASMY価格 ' + t + '時点'; },
+      oldGold: function (t) { return '金価格 ' + t + '時点'; },
+      since: function (d) { return '前回から ' + d + ' g'; },
+      title: '保有しているJASMYの数量', hint: 'この端末にのみ保存されます。',
+      error: '正の数を入力してください', cancel: 'キャンセル', save: '保存',
+      edit: 'JASMYの数量を変更', refresh: '更新',
+      disclaimer: 'Jasmy株式会社とは関係ありません。投資助言ではありません。価格: Coinbase, Kraken, gold-api.com'
+    }
+  };
+  var lang = (navigator.languages || [navigator.language || 'en']).some(function (l) { return /^ja/i.test(l); }) ? 'ja' : 'en';
+  var T = L[lang];
+  document.documentElement.lang = lang;
+  function $(id) { return document.getElementById(id); }
+  $('label').textContent = T.gold;
+  $('sheetTitle').textContent = T.title;
+  $('hint').textContent = T.hint;
+  $('cancel').textContent = T.cancel;
+  $('save').textContent = T.save;
+  $('disclaimer').textContent = T.disclaimer;
+  $('holding').setAttribute('aria-label', T.edit);
+  $('value').setAttribute('aria-label', T.edit);
+  $('status').setAttribute('aria-label', T.refresh);
+
+  // ---------- state ----------
+  function load(key, json) {
+    try { var v = localStorage.getItem(key); return json ? JSON.parse(v) : v; } catch (e) { return null; }
+  }
+  function save(key, v) {
+    try { localStorage.setItem(key, typeof v === 'string' ? v : JSON.stringify(v)); } catch (e) {}
+  }
+  var amount = load(AMOUNT_KEY);                   // the user's own holding; none until entered
+  if (amount && !GoldCalc.normalizeAmount(amount)) amount = null;
+  var last = load(STORE_KEY, true);                // last valid result incl. both quote timestamps
+  if (!last || !amount || last.jasmyAmount !== amount) last = null;  // never show grams for another holding
+  var seen = load(SEEN_KEY, true);
+  window.goldState = { last: last, lastError: null, amount: amount };
+
+  var gramsEl = $('grams'), statusEl = $('statusText'), barEl = $('bar'), deltaEl = $('delta');
+  barEl.innerHTML = GoldArt.goldBarSVG({ id: 'app', shine: true });
+
+  // ---------- prices ----------
+  function getJson(url) {
+    var ctl = new AbortController();
+    var t = setTimeout(function () { ctl.abort(); }, TIMEOUT_MS);
+    return fetch(url, { cache: 'no-store', signal: ctl.signal })
+      .then(function (r) { if (!r.ok) throw new Error(url + ' HTTP ' + r.status); return r.json(); })
+      .finally(function () { clearTimeout(t); });
+  }
+  function checkPrice(p) {
+    p = String(p);
+    if (!/^\d+(\.\d+)?$/.test(p) || !(parseFloat(p) > 0)) throw new Error('bad price ' + p);
+    return p;
+  }
+  // JASMY/USD: Coinbase Exchange (direct USD order book, last trade); Kraken JASMY/USD as fallback.
+  function fetchJasmy() {
+    return getJson('https://api.exchange.coinbase.com/products/JASMY-USD/ticker').then(function (d) {
+      return { price: checkPrice(d.price), time: Date.parse(d.time), source: 'coinbase', fetched: Date.now() };
+    }).catch(function (err) {
+      return getJson('https://api.kraken.com/0/public/Ticker?pair=JASMYUSD').then(function (d) {
+        if (d.error && d.error.length) throw new Error(d.error.join(','));
+        var k = Object.keys(d.result)[0];
+        // Kraken ticker has no trade time; the fetch time is recorded instead.
+        return { price: checkPrice(d.result[k].c[0]), time: Date.now(), source: 'kraken', fetched: Date.now(), fallbackFrom: String(err) };
+      });
+    });
+  }
+  // XAU/USD spot per troy ounce: gold-api.com (free, keyless).
+  function fetchGold() {
+    return getJson('https://api.gold-api.com/price/XAU').then(function (d) {
+      if (d.symbol !== 'XAU' || d.currency !== 'USD') throw new Error('unexpected gold payload');
+      return { price: checkPrice(d.price), time: Date.parse(d.updatedAt), source: 'gold-api.com', fetched: Date.now() };
+    });
+  }
+
+  // ---------- display ----------
+  function hhmm(ms) {
+    var d = new Date(ms);
+    return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+  }
+  function showHolding() {
+    if (!amount) { $('holdingText').textContent = ''; return; }
+    // display only: rounded to 2 dp; calculations use the full stored amount
+    var a = GoldCalc.parseDec(amount);
+    var cents = a.s >= 2 ? (a.i * 2n + 10n ** BigInt(a.s - 2)) / (2n * 10n ** BigInt(a.s - 2)) : a.i * 10n ** BigInt(2 - a.s);
+    var str = cents.toString().padStart(3, '0');
+    $('holdingText').textContent = GoldCalc.groupThousands(str.slice(0, -2) + '.' + str.slice(-2)) + ' JASMY';
+  }
+
+  // number tween: intermediate frames are display-only; the final text is the exact 2-dp value
+  var tween = 0, tweenEnd = 0;
+  function setGrams(toStr, fromNum, ms) {
+    cancelAnimationFrame(tween); clearTimeout(tweenEnd);
+    var to = parseFloat(toStr);
+    if (reduceMotion || fromNum == null || !isFinite(fromNum) || fromNum === to || !ms) {
+      gramsEl.textContent = GoldCalc.groupThousands(toStr); return;
+    }
+    // the exact final value must not depend on animation frames (throttled in background)
+    tweenEnd = setTimeout(function () { cancelAnimationFrame(tween); gramsEl.textContent = GoldCalc.groupThousands(toStr); }, ms + 80);
+    var t0 = performance.now();
+    (function step(now) {
+      var k = Math.min(1, (now - t0) / ms), e = 1 - Math.pow(1 - k, 3);
+      gramsEl.textContent = k < 1 ? GoldCalc.groupThousands((fromNum + (to - fromNum) * e).toFixed(2)) : GoldCalc.groupThousands(toStr);
+      if (k < 1) tween = requestAnimationFrame(step);
+    })(t0);
+  }
+  function shownNumber() {
+    var n = parseFloat(gramsEl.textContent.replace(/,/g, ''));
+    return isFinite(n) ? n : null;
+  }
+
+  function renderStatus(fresh) {
+    var oldQuote = null;
+    if (last) {
+      var now = Date.now();
+      if (now - last.jasmy.time > MAX_QUOTE_AGE_MS) oldQuote = T.oldJasmy(hhmm(last.jasmy.time));
+      else if (now - last.gold.time > MAX_QUOTE_AGE_MS) oldQuote = T.oldGold(hhmm(last.gold.time));
+      if (!fresh) statusEl.textContent = T.stale(hhmm(last.computedAt));
+      else statusEl.textContent = T.updated(hhmm(last.computedAt)) + (oldQuote ? ' · ' + oldQuote : '');
+    } else {
+      statusEl.textContent = fresh === null ? (amount ? T.loading : '') : T.noData;
+    }
+    document.body.classList.toggle('stale', last ? (!fresh || !!oldQuote) : fresh === false);
+  }
+
+  var deltaTimer = 0;
+  function showDelta(d) {
+    clearTimeout(deltaTimer);
+    deltaEl.textContent = T.since(d.replace('-', '−'));
+    deltaEl.className = 'delta show' + (d.charAt(0) === '+' ? ' up' : '');
+    deltaTimer = setTimeout(function () { deltaEl.className = 'delta' + (d.charAt(0) === '+' ? ' up' : ''); }, 8000);
+  }
+
+  // ---------- falling coins ----------
+  var fx = $('fx'), ctx = fx.getContext('2d');
+  function drawCoin(x, y, r, phase, alpha) {
+    var c = Math.cos(phase), w = Math.max(Math.abs(c), 0.12) * r, dir = c >= 0 ? 1 : -1;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(x, y);
+    // edge (coin thickness) shows as it turns
+    ctx.fillStyle = '#9C7424';
+    ctx.beginPath(); ctx.ellipse(dir * (1 - Math.abs(c)) * r * 0.16, 0, w, r, 0, 0, 7); ctx.fill();
+    var g = ctx.createLinearGradient(-w, -r, w, r);
+    g.addColorStop(0, '#FCEBB0'); g.addColorStop(.45, '#E6C163'); g.addColorStop(1, '#B4862C');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.ellipse(0, 0, w, r, 0, 0, 7); ctx.fill();
+    ctx.strokeStyle = 'rgba(150, 108, 36, .55)'; ctx.lineWidth = Math.max(1, r * 0.09);
+    ctx.beginPath(); ctx.ellipse(0, 0, w * 0.74, r * 0.74, 0, 0, 7); ctx.stroke();
+    ctx.fillStyle = 'rgba(255, 250, 225, .55)';
+    ctx.beginPath(); ctx.ellipse(-w * 0.32, -r * 0.38, w * 0.22, r * 0.14, -0.6, 0, 7); ctx.fill();
+    ctx.restore();
+  }
+  function coinRain(count, onLand) {
+    var dpr = window.devicePixelRatio || 1, W = innerWidth, H = innerHeight;
+    fx.width = W * dpr; fx.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    var b = barEl.getBoundingClientRect(), G = 2600, coins = [], landed = false;
+    for (var i = 0; i < count; i++) {
+      var r = 8 + Math.random() * 6;
+      var x0 = W * (0.08 + Math.random() * 0.84), y0 = -r - Math.random() * 60;
+      var xt = b.left + b.width * (0.3 + Math.random() * 0.4);
+      var yt = b.top + b.height * (16 + Math.random() * 14) / 112;
+      var T = Math.sqrt(2 * (yt - y0) / G);
+      coins.push({ r: r, x0: x0, y0: y0, xt: xt, yt: yt, T: T, vx: (xt - x0) / T,
+                   delay: Math.random() * 0.9 + (i / count) * 0.3, spin: 8 + Math.random() * 10, ph: Math.random() * 6 });
+    }
+    var t0 = performance.now();
+    (function frame(now) {
+      var t = (now - t0) / 1000, alive = false;
+      ctx.clearRect(0, 0, W, H);
+      coins.forEach(function (c) {
+        var s = t - c.delay;
+        if (s < 0) { alive = true; return; }
+        var x, y, a = 1, ph = c.ph + c.spin * s;
+        if (s < c.T) { x = c.x0 + c.vx * s; y = c.y0 + 0.5 * G * s * s; }
+        else {
+          if (!c.hit) { c.hit = true; if (!landed) { landed = true; onLand && onLand(); } }
+          var u = s - c.T, vb = G * c.T * 0.22;           // small bounce, then melts into the bar
+          x = c.xt + c.vx * 0.15 * u;
+          y = c.yt - Math.max(0, vb * u - 0.5 * G * u * u);
+          a = Math.max(0, 1 - u / 0.32);
+          ph = c.ph + c.spin * c.T + 2 * u;
+        }
+        if (a > 0) { alive = true; drawCoin(x, y, c.r, ph, a); }
+      });
+      if (alive) requestAnimationFrame(frame); else ctx.clearRect(0, 0, W, H);
+    })(t0);
+  }
+  function celebrate(fromNum, toStr, d, coins) {
+    var landDelay = 0;
+    if (!reduceMotion) {
+      coinRain(coins, function () {
+        barEl.classList.remove('glint', 'pulse'); void barEl.offsetWidth;
+        barEl.classList.add('glint', 'pulse');
+        setTimeout(function () { barEl.classList.remove('glint', 'pulse'); }, 1100);
+        // Android: light tick, only once the user has interacted (browsers block it otherwise)
+        if (navigator.vibrate && navigator.userActivation && navigator.userActivation.hasBeenActive) navigator.vibrate(12);
+      });
+      landDelay = 350;
+    }
+    setTimeout(function () { setGrams(toStr, fromNum, 1600); }, landDelay);
+    if (d) setTimeout(function () { showDelta(d); }, landDelay + 1200);
+  }
+
+  // ---------- refresh ----------
+  var visit = true, firstEntry = false, inFlight = null;
+
+  function onFresh(prev) {
+    var to = last.grams2, from = shownNumber();
+    if (visit) {
+      visit = false;
+      var base = firstEntry ? '0' : (seen && seen.amount === amount ? seen.grams18 : null);
+      firstEntry = false;
+      var d = base != null ? GoldCalc.diff2(last.grams18, base) : '0.00';
+      if (d.charAt(0) === '+') {
+        // gold grew since the last visit: coins, count-up from the old value
+        var rel = base === '0' ? 1 : Math.abs(parseFloat(d)) / Math.max(parseFloat(base), 1e-9);
+        var n = Math.round(Math.min(36, 12 + rel * 1200));
+        celebrate(parseFloat(base), to, base === '0' ? null : d, n);  // first entry: no "since last visit"
+      } else if (d.charAt(0) === '-') {
+        setGrams(to, parseFloat(base), 1200);
+        setTimeout(function () { showDelta(d); }, 900);
+      } else setGrams(to, from, 600);
+    } else setGrams(to, from, 600);
+    seen = { grams18: last.grams18, amount: amount, at: Date.now() };
+    save(SEEN_KEY, seen);
+  }
+
+  function refresh() {
+    if (!amount) return Promise.resolve();
+    if (inFlight) return inFlight;
+    document.body.classList.add('loading');
+    var forAmount = amount;
+    inFlight = Promise.all([fetchJasmy(), fetchGold()]).then(function (q) {
+      if (forAmount !== amount) return;
+      // Both quotes are from this refresh: compute. Never mix with an older quote.
+      var r = GoldCalc.goldGrams(q[0].price, q[1].price, amount);
+      last = { grams2: r.grams2, grams18: r.grams18, portfolioUsd: r.portfolioUsd,
+               jasmyAmount: amount, jasmy: q[0], gold: q[1], computedAt: Date.now() };
+      window.goldState.last = last; window.goldState.lastError = null;
+      save(STORE_KEY, last);
+      renderStatus(true);
+      onFresh();
+    }).catch(function (err) {
+      window.goldState.lastError = String(err);
+      renderStatus(false);
+    }).finally(function () {
+      document.body.classList.remove('loading');
+      inFlight = null;
+    });
+    return inFlight;
+  }
+
+  // ---------- lifecycle ----------
+  var hiddenAt = 0;
+  function resume() {
+    if (hiddenAt && Date.now() - hiddenAt >= AWAY_MS) visit = true;
+    if (last && Date.now() - last.computedAt > 2 * REFRESH_MS) renderStatus(false);
+    refresh();
+  }
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'hidden') hiddenAt = Date.now();
+    else resume();
+  });
+  window.addEventListener('pageshow', function (e) { if (e.persisted) resume(); });
+  setInterval(function () { if (document.visibilityState === 'visible') refresh(); }, REFRESH_MS);
+  $('status').addEventListener('click', function () { refresh(); });
+
+  // ---------- holding editor ----------
+  var sheet = $('sheet'), input = $('amount'), errorEl = $('amountError');
+  function openSheet() {
+    input.value = amount || ''; errorEl.textContent = '';
+    sheet.classList.add('open');
+    setTimeout(function () { input.focus(); }, 60);
+  }
+  function closeSheet() { if (!amount) return; sheet.classList.remove('open'); input.blur(); }
+  $('value').addEventListener('click', openSheet);
+  $('holding').addEventListener('click', openSheet);
+  $('cancel').addEventListener('click', closeSheet);
+  sheet.addEventListener('click', function (e) { if (e.target === sheet) closeSheet(); });
+  $('amountForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var v = GoldCalc.normalizeAmount(input.value);
+    if (!v) { errorEl.textContent = T.error; return; }
+    var wasFirst = !amount;
+    amount = v; window.goldState.amount = v;
+    save(AMOUNT_KEY, v);
+    showHolding();
+    document.body.classList.remove('first');
+    if (wasFirst) { visit = true; firstEntry = true; }
+    else if (last) {
+      // same quotes, new holding: keeps the quotes' original timestamps and freshness; no coins for an edit
+      var r = GoldCalc.goldGrams(last.jasmy.price, last.gold.price, v);
+      last.grams2 = r.grams2; last.grams18 = r.grams18; last.portfolioUsd = r.portfolioUsd; last.jasmyAmount = v;
+      save(STORE_KEY, last);
+      seen = { grams18: r.grams18, amount: v, at: Date.now() }; save(SEEN_KEY, seen);
+      setGrams(r.grams2, shownNumber(), 600);
+    }
+    sheet.classList.remove('open'); input.blur();
+    refresh();
+  });
+
+  // ---------- start ----------
+  showHolding();
+  if (!amount) {
+    document.body.classList.add('first');
+    renderStatus(null);
+    setTimeout(openSheet, reduceMotion ? 0 : 700);
+  } else {
+    // a stored result from an earlier session is shown as stale until the live refresh lands
+    if (last) gramsEl.textContent = GoldCalc.groupThousands(last.grams2);
+    renderStatus(last ? false : null);
+    refresh();
+  }
+
+  if ('serviceWorker' in navigator && location.protocol === 'https:') {
+    navigator.serviceWorker.register('sw.js').catch(function () {});
+  }
+})();
+</script>
+</body>
+</html>
