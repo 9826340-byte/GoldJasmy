@@ -161,6 +161,38 @@
   .first #cancel { display: none; }
   .disclaimer { margin-top: 14px; font-size: 10px; line-height: 1.5; color: #BDB8AE; }
 
+  /* Vault Protection (inside the editor) */
+  .vaultrow {
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    margin-top: 14px; padding-top: 14px; border-top: 1px solid #ECE7DC;
+  }
+  .vtitle { font-size: 14px; color: var(--ink); }
+  .vnote { margin-top: 3px; font-size: 11px; line-height: 1.45; color: var(--muted); }
+  .switch {
+    flex: none; position: relative; width: 44px; height: 26px; border-radius: 13px;
+    background: #E4DED2; transition: background .2s;
+  }
+  .switch span {
+    position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%;
+    background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, .18); transition: transform .2s;
+  }
+  .switch[aria-checked=true] { background: var(--up); }
+  .switch[aria-checked=true] span { transform: translateX(18px); }
+  .switch:disabled { opacity: .45; cursor: default; }
+  .textlink { margin-top: 10px; padding: 6px 0; font-size: 12px; color: var(--stale); }
+  .first .vaultrow, .first #eraseBtn { display: none; }
+
+  /* locked vault: nothing sensitive is rendered */
+  .lockpanel { display: none; flex-direction: column; align-items: center; text-align: center; }
+  .locked .lockpanel { display: flex; }
+  .locked .value, .locked .label, .locked .delta, .locked .holding, .locked footer { display: none; }
+  .unlock {
+    font-family: var(--serif); font-size: 22px; color: var(--ink);
+    padding: 10px 26px; border: 1px solid #E4DED2; border-radius: 22px;
+  }
+  .lockhint { margin-top: 14px; max-width: 260px; font-size: 12px; line-height: 1.5; color: var(--muted); }
+  .lockmsg { min-height: 16px; margin-top: 6px; font-size: 11px; color: var(--stale); }
+
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation: none !important; transition: none !important; }
   }
@@ -173,6 +205,12 @@
   <div class="value" id="value" role="button" tabindex="0"><span id="grams">—</span><span class="unit">g</span></div>
   <div class="label" id="label">GOLD</div>
   <div class="delta" id="delta" aria-live="polite"></div>
+  <div class="lockpanel" id="lockPanel">
+    <button type="button" class="unlock" id="unlockBtn"></button>
+    <p class="lockhint" id="lockHint"></p>
+    <p class="lockmsg" id="lockMsg" aria-live="polite"></p>
+    <button type="button" class="textlink" id="lockErase"></button>
+  </div>
 </main>
 <canvas id="fx" aria-hidden="true"></canvas>
 <footer><button id="status" type="button"><span id="statusText"></span><span class="r">↻</span></button></footer>
@@ -185,12 +223,18 @@
     <div class="hint" id="hint"></div>
     <div id="amountError"></div>
     <div class="actions"><button type="button" id="cancel"></button><button type="submit" id="save"></button></div>
+    <div class="vaultrow">
+      <div><div class="vtitle" id="vaultTitle"></div><div class="vnote" id="vaultNote" aria-live="polite"></div></div>
+      <button type="button" class="switch" id="vaultSwitch" role="switch" aria-checked="false"><span></span></button>
+    </div>
+    <button type="button" class="textlink" id="eraseBtn"></button>
     <p class="disclaimer" id="disclaimer"></p>
   </form>
 </div>
 
 <script src="calc.js"></script>
 <script src="art.js"></script>
+<script src="vault.js"></script>
 <script>
 (function () {
   'use strict';
@@ -198,9 +242,6 @@
   var TIMEOUT_MS = 8000;
   var MAX_QUOTE_AGE_MS = 15 * 60 * 1000;  // older quote time => result flagged stale
   var AWAY_MS = 60 * 1000;                 // back after this long = a new visit
-  var STORE_KEY = 'jasmyGold.lastValid.v2';
-  var AMOUNT_KEY = 'jasmyGold.amount.v2';
-  var SEEN_KEY = 'jasmyGold.seen.v2';      // last fresh value the user saw (for "since last visit")
   var reduceMotion = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   // ---------- language (phone language: Japanese, otherwise English) ----------
@@ -215,7 +256,19 @@
       title: 'How much JASMY do you hold?', hint: 'Stored only on this device.',
       error: 'Enter a positive number', cancel: 'Cancel', save: 'Save',
       edit: 'Change JASMY amount', refresh: 'Refresh',
-      disclaimer: 'Not affiliated with Jasmy Inc. Not financial advice. Prices: Coinbase, Kraken, gold-api.com.'
+      disclaimer: 'Not affiliated with Jasmy Inc. Not financial advice. Prices: Coinbase, Kraken, gold-api.com.',
+      vault: 'Vault Protection',
+      vaultOff: 'Off. Encrypts your amount on this device; unlock with your screen lock (biometrics or passcode).',
+      vaultOn: 'On. Your amount is encrypted on this device with a passkey.',
+      vaultChecking: 'Waiting for your device…',
+      vaultUnavailable: 'Not available on this device or browser: it does not provide a screen-lock-verified passkey that can derive an encryption key. Your amount is stored unencrypted on this device.',
+      vaultFailed: 'Not changed. Try again.',
+      unlock: 'Unlock', lockHint: 'Your amount is encrypted. Unlock with your screen lock.',
+      unlockFailed: 'Not unlocked. Tap Unlock to try again.',
+      decryptFailed: 'This vault cannot be opened with this device’s passkey.',
+      erase: 'Erase Vault Data',
+      eraseConfirm: 'Erase your JASMY amount, previous values and vault data from this device? This cannot be undone.',
+      passkeyLeft: 'Erased. A passkey named “JASMY Gold vault” may remain in your passwords; you can delete it there.'
     },
     ja: {
       gold: '純金換算', loading: '読み込み中', noData: '価格を取得できません',
@@ -227,7 +280,19 @@
       title: '保有しているJASMYの数量', hint: 'この端末にのみ保存されます。',
       error: '正の数を入力してください', cancel: 'キャンセル', save: '保存',
       edit: 'JASMYの数量を変更', refresh: '更新',
-      disclaimer: 'Jasmy株式会社とは関係ありません。投資助言ではありません。価格: Coinbase, Kraken, gold-api.com'
+      disclaimer: 'Jasmy株式会社とは関係ありません。投資助言ではありません。価格: Coinbase, Kraken, gold-api.com',
+      vault: '保管データの保護',
+      vaultOff: 'オフ。数量をこの端末で暗号化し、画面ロック（生体認証またはパスコード）で解除します。',
+      vaultOn: 'オン。数量はこの端末のパスキーで暗号化されています。',
+      vaultChecking: '端末の確認を待っています…',
+      vaultUnavailable: 'この端末またはブラウザでは利用できません（画面ロックで確認され、暗号鍵を生成できるパスキーがありません）。数量は暗号化されずにこの端末に保存されます。',
+      vaultFailed: '変更されませんでした。もう一度お試しください。',
+      unlock: 'ロック解除', lockHint: '数量は暗号化されています。画面ロックで解除してください。',
+      unlockFailed: '解除されませんでした。「ロック解除」をタップしてください。',
+      decryptFailed: 'この端末のパスキーではこの保管データを開けません。',
+      erase: '保存データを消去',
+      eraseConfirm: 'この端末からJASMYの数量・前回の値・保管データを消去しますか？元に戻せません。',
+      passkeyLeft: '消去しました。パスキー「JASMY Gold vault」がパスワード一覧に残る場合は、そこで削除できます。'
     }
   };
   var lang = (navigator.languages || [navigator.language || 'en']).some(function (l) { return /^ja/i.test(l); }) ? 'ja' : 'en';
@@ -243,20 +308,94 @@
   $('holding').setAttribute('aria-label', T.edit);
   $('value').setAttribute('aria-label', T.edit);
   $('status').setAttribute('aria-label', T.refresh);
+  $('vaultTitle').textContent = T.vault;
+  $('eraseBtn').textContent = T.erase;
+  $('lockErase').textContent = T.erase;
+  $('unlockBtn').textContent = T.unlock;
+  $('lockHint').textContent = T.lockHint;
+  $('vaultSwitch').setAttribute('aria-label', T.vault);
 
-  // ---------- state ----------
+  // ---------- storage ----------
+  // Sensitive record { amount, seen: { grams18, at } } is stored ONCE:
+  //   Vault Protection off -> HOLDING_KEY (plain JSON); on -> VAULT_KEY (AES-256-GCM, key from passkey PRF).
+  // QUOTES_KEY holds only the last public prices (no holding data). Nothing derived (grams, USD) is persisted.
+  var HOLDING_KEY = 'jasmyGold.holding.v3';
+  var VAULT_KEY = 'jasmyGold.vault.v3';
+  var QUOTES_KEY = 'jasmyGold.quotes.v3';
+  var UNAVAILABLE_KEY = 'jasmyGold.vaultUnavailable.v3';  // reason the vault cannot work on this device
   function load(key, json) {
     try { var v = localStorage.getItem(key); return json ? JSON.parse(v) : v; } catch (e) { return null; }
   }
   function save(key, v) {
     try { localStorage.setItem(key, typeof v === 'string' ? v : JSON.stringify(v)); } catch (e) {}
   }
-  var amount = load(AMOUNT_KEY);                   // the user's own holding; none until entered
-  if (amount && !GoldCalc.normalizeAmount(amount)) amount = null;
-  var last = load(STORE_KEY, true);                // last valid result incl. both quote timestamps
-  if (!last || !amount || last.jasmyAmount !== amount) last = null;  // never show grams for another holding
-  var seen = load(SEEN_KEY, true);
-  window.goldState = { last: last, lastError: null, amount: amount };
+  function remove(key) { try { localStorage.removeItem(key); } catch (e) {} }
+  function eraseAllStored() {
+    try {
+      for (var i = localStorage.length - 1; i >= 0; i--) {
+        var k = localStorage.key(i);
+        if (k && k.indexOf('jasmyGold.') === 0) localStorage.removeItem(k);
+      }
+    } catch (e) {}
+  }
+  (function migrateLegacy() {
+    // v2 kept the amount in three places and persisted grams/portfolio USD: keep only the amount
+    var oldAmount = load('jasmyGold.amount.v2'), oldSeen = load('jasmyGold.seen.v2', true);
+    if (oldAmount && GoldCalc.normalizeAmount(oldAmount) && !load(HOLDING_KEY) && !load(VAULT_KEY)) {
+      save(HOLDING_KEY, { amount: oldAmount,
+        seen: oldSeen && oldSeen.amount === oldAmount ? { grams18: oldSeen.grams18, at: oldSeen.at } : null });
+    }
+    ['jasmyGold.amount.v2', 'jasmyGold.lastValid.v2', 'jasmyGold.seen.v2',
+     'jasmyGold.amount.v1', 'jasmyGold.lastValid.v1'].forEach(remove);
+  })();
+
+  // ---------- in-memory state (scoped to this closure; nothing is exposed on window) ----------
+  var amount = null;      // the user's holding; null until entered, or while the vault is locked
+  var seen = null;        // { grams18, at }: last fresh value the user saw ("since last visit")
+  var quotes = load(QUOTES_KEY, true);  // { jasmy, gold, computedAt }: public prices only
+  var last = null;        // derived in memory from amount + quotes: { grams2, grams18, jasmy, gold, computedAt }
+  var vault = null;       // { credId, salt } when Vault Protection is on
+  var vaultKey = null;    // non-extractable AES-GCM CryptoKey, only while unlocked
+  var locked = false;
+
+  function deriveLast() {
+    if (!amount || !quotes || !quotes.jasmy || !quotes.gold) { last = null; return; }
+    var r = GoldCalc.goldGrams(quotes.jasmy.price, quotes.gold.price, amount);
+    last = { grams2: r.grams2, grams18: r.grams18, jasmy: quotes.jasmy, gold: quotes.gold, computedAt: quotes.computedAt };
+  }
+
+  // writes of the sensitive record are serialized; with the vault on they are always re-encrypted
+  var writeChain = Promise.resolve();
+  function persistHolding() {
+    var rec = { amount: amount, seen: seen };
+    writeChain = writeChain.then(function () {
+      if (!rec.amount) return;
+      if (vault) {
+        if (!vaultKey) return;  // locked: nothing in memory to write
+        var v = vault, k = vaultKey;
+        return GoldVault.seal(k, v.credId, rec).then(function (box) {
+          if (vault !== v) return;  // vault turned off meanwhile
+          save(VAULT_KEY, { v: 1, alg: 'AES-256-GCM', kdf: 'HKDF-SHA-256(WebAuthn PRF)', credId: v.credId,
+                            prfSalt: GoldVault.b64u(v.salt), iv: box.iv, ct: box.ct });
+          remove(HOLDING_KEY);
+        });
+      }
+      save(HOLDING_KEY, rec);
+    }).catch(function () {});
+    return writeChain;
+  }
+
+  var stored = load(VAULT_KEY, true);
+  if (stored && stored.credId && stored.prfSalt && stored.iv && stored.ct) {
+    vault = { credId: stored.credId, salt: GoldVault.unb64u(stored.prfSalt) };
+    locked = true;
+    remove(HOLDING_KEY);  // never keep a plain copy next to the vault
+  } else {
+    var h = load(HOLDING_KEY, true);
+    if (h && h.amount && GoldCalc.normalizeAmount(h.amount)) { amount = h.amount; seen = h.seen || null; }
+  }
+  deriveLast();
+  var lastError = null;
 
   var gramsEl = $('grams'), statusEl = $('statusText'), barEl = $('bar'), deltaEl = $('delta');
   barEl.innerHTML = GoldArt.goldBarSVG({ id: 'app', shine: true });
@@ -427,11 +566,11 @@
   // ---------- refresh ----------
   var visit = true, firstEntry = false, inFlight = null;
 
-  function onFresh(prev) {
+  function onFresh() {
     var to = last.grams2, from = shownNumber();
     if (visit) {
       visit = false;
-      var base = firstEntry ? '0' : (seen && seen.amount === amount ? seen.grams18 : null);
+      var base = firstEntry ? '0' : (seen ? seen.grams18 : null);
       firstEntry = false;
       var d = base != null ? GoldCalc.diff2(last.grams18, base) : '0.00';
       if (d.charAt(0) === '+') {
@@ -444,28 +583,28 @@
         setTimeout(function () { showDelta(d); }, 900);
       } else setGrams(to, from, 600);
     } else setGrams(to, from, 600);
-    seen = { grams18: last.grams18, amount: amount, at: Date.now() };
-    save(SEEN_KEY, seen);
+    seen = { grams18: last.grams18, at: Date.now() };
+    persistHolding();
   }
 
   function refresh() {
-    if (!amount) return Promise.resolve();
+    if (!amount || locked) return Promise.resolve();
     if (inFlight) return inFlight;
     document.body.classList.add('loading');
     var forAmount = amount;
     inFlight = Promise.all([fetchJasmy(), fetchGold()]).then(function (q) {
-      if (forAmount !== amount) return;
+      if (forAmount !== amount || locked) return;
       // Both quotes are from this refresh: compute. Never mix with an older quote.
-      var r = GoldCalc.goldGrams(q[0].price, q[1].price, amount);
-      last = { grams2: r.grams2, grams18: r.grams18, portfolioUsd: r.portfolioUsd,
-               jasmyAmount: amount, jasmy: q[0], gold: q[1], computedAt: Date.now() };
-      window.goldState.last = last; window.goldState.lastError = null;
-      save(STORE_KEY, last);
+      // The requests above carry no user data; the holding is only used here, on the device.
+      quotes = { jasmy: q[0], gold: q[1], computedAt: Date.now() };
+      save(QUOTES_KEY, quotes);
+      deriveLast();
+      lastError = null;
       renderStatus(true);
       onFresh();
     }).catch(function (err) {
-      window.goldState.lastError = String(err);
-      renderStatus(false);
+      lastError = String(err);
+      if (!locked) renderStatus(false);
     }).finally(function () {
       document.body.classList.remove('loading');
       inFlight = null;
@@ -473,25 +612,180 @@
     return inFlight;
   }
 
+  // ---------- Vault Protection (WebAuthn passkey + PRF -> AES-256-GCM) ----------
+  function Unavailable(reason) { this.reason = reason; }
+  var authBusy = false;
+
+  function signalRemoved(credId) {
+    // ask the platform to drop the passkey (Chrome 132+, Safari 26+); otherwise it stays in the passwords list
+    try {
+      if (window.PublicKeyCredential && PublicKeyCredential.signalUnknownCredential) {
+        PublicKeyCredential.signalUnknownCredential({ rpId: location.hostname, credentialId: credId }).catch(function () {});
+        return true;
+      }
+    } catch (e) {}
+    return false;
+  }
+
+  // cheap checks that need no prompt; the decisive check is the real PRF output during enrolment
+  function precheck() {
+    if (!window.isSecureContext || !window.PublicKeyCredential || !navigator.credentials || !window.crypto || !crypto.subtle)
+      return Promise.resolve('no-webauthn');
+    return PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().then(function (ok) {
+      if (!ok) return 'no-platform-authenticator';
+      if (!PublicKeyCredential.getClientCapabilities) return null;
+      return PublicKeyCredential.getClientCapabilities().then(function (c) {
+        return c && c['extension:prf'] === false ? 'no-prf' : null;
+      }, function () { return null; });
+    }, function () { return 'no-platform-authenticator'; });
+  }
+
+  // user-verified assertion with the vault passkey -> AES key (throws Unavailable if no PRF output / no UV)
+  function assertKey(credId, salt) {
+    return navigator.credentials.get({ publicKey: {
+      challenge: GoldVault.random(32),
+      allowCredentials: [{ type: 'public-key', id: GoldVault.unb64u(credId) }],
+      userVerification: 'required', timeout: 60000,
+      extensions: { prf: { eval: { first: salt } } }
+    } }).then(function (a) {
+      if (!a || !GoldVault.userVerified(a.response.authenticatorData)) throw new Unavailable('no-user-verification');
+      var ext = a.getClientExtensionResults ? a.getClientExtensionResults() : {};
+      var first = ext.prf && ext.prf.results && ext.prf.results.first;
+      if (!first) throw new Unavailable('no-prf-output');
+      return GoldVault.deriveKey(first, credId);
+    });
+  }
+
+  function enableVault() {
+    var credId = null;
+    var salt = GoldVault.random(32);
+    return precheck().then(function (reason) {
+      if (reason) throw new Unavailable(reason);
+      return navigator.credentials.create({ publicKey: {
+        rp: { name: 'JASMY Gold' },
+        user: { id: GoldVault.random(16), name: 'JASMY Gold vault', displayName: 'JASMY Gold vault' },
+        challenge: GoldVault.random(32),
+        pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],
+        authenticatorSelection: { authenticatorAttachment: 'platform', residentKey: 'preferred', userVerification: 'required' },
+        attestation: 'none', timeout: 60000,
+        extensions: { prf: { eval: { first: salt } } }
+      } });
+    }).then(function (cred) {
+      credId = GoldVault.b64u(cred.rawId);
+      var ext = cred.getClientExtensionResults ? cred.getClientExtensionResults() : {};
+      if (!ext.prf || ext.prf.enabled !== true) throw new Unavailable('prf-not-enabled');
+      var ad = cred.response.getAuthenticatorData ? cred.response.getAuthenticatorData() : null;
+      if (ad && !GoldVault.userVerified(ad)) throw new Unavailable('no-user-verification');
+      // the key always comes from an assertion, so the unlock path is proven before plain data is removed
+      return assertKey(credId, salt);
+    }).then(function (key) {
+      var rec = { amount: amount, seen: seen };
+      return GoldVault.seal(key, credId, rec).then(function (box) {
+        return GoldVault.open(key, credId, box).then(function (check) {
+          if (check.amount !== amount) throw new Error('vault verification failed');
+          vault = { credId: credId, salt: salt }; vaultKey = key;
+          save(VAULT_KEY, { v: 1, alg: 'AES-256-GCM', kdf: 'HKDF-SHA-256(WebAuthn PRF)', credId: credId,
+                            prfSalt: GoldVault.b64u(salt), iv: box.iv, ct: box.ct });
+          remove(HOLDING_KEY);
+          remove(UNAVAILABLE_KEY);
+        });
+      });
+    }).catch(function (err) {
+      if (credId && !vault) signalRemoved(credId);  // do not leave an unusable passkey behind
+      if (err instanceof Unavailable) save(UNAVAILABLE_KEY, err.reason);
+      throw err;
+    });
+  }
+
+  function disableVault() {
+    // turning protection off writes the amount in plain form again: require a fresh verification
+    return assertKey(vault.credId, vault.salt).then(function () {
+      var credId = vault.credId;
+      save(HOLDING_KEY, { amount: amount, seen: seen });
+      remove(VAULT_KEY);
+      vault = null; vaultKey = null;
+      signalRemoved(credId);
+    });
+  }
+
+  function unlock() {
+    if (!vault || authBusy) return;
+    authBusy = true;
+    $('lockMsg').textContent = '';
+    var box = load(VAULT_KEY, true);
+    assertKey(vault.credId, vault.salt).then(function (key) {
+      return GoldVault.open(key, vault.credId, box).then(function (rec) {
+        if (!rec || !GoldCalc.normalizeAmount(rec.amount)) throw new Error('bad record');
+        vaultKey = key; amount = rec.amount; seen = rec.seen || null;
+        locked = false;
+        document.body.classList.remove('locked');
+        deriveLast();
+        showHolding();
+        gramsEl.textContent = last ? GoldCalc.groupThousands(last.grams2) : '—';
+        renderStatus(last ? false : null);
+        visit = true;
+        refresh();
+      }, function () { $('lockMsg').textContent = T.decryptFailed; });
+    }).catch(function (err) {
+      $('lockMsg').textContent = err instanceof Unavailable ? T.decryptFailed : T.unlockFailed;
+    }).finally(function () { authBusy = false; });
+  }
+
+  function lock() {
+    // drop every sensitive value from memory and from the screen
+    vaultKey = null; amount = null; seen = null; last = null;
+    locked = true;
+    cancelAnimationFrame(tween); clearTimeout(tweenEnd); clearTimeout(deltaTimer);
+    gramsEl.textContent = '—'; deltaEl.textContent = ''; deltaEl.className = 'delta';
+    $('holdingText').textContent = ''; statusEl.textContent = '';
+    ctx.clearRect(0, 0, fx.width, fx.height);
+    sheet.classList.remove('open'); input.value = ''; input.blur();
+    document.body.classList.remove('stale');
+    document.body.classList.add('locked');
+    $('lockMsg').textContent = '';
+  }
+
   // ---------- lifecycle ----------
-  var hiddenAt = 0;
+  var hiddenAt = 0, lastAutoUnlock = 0;
+  function autoUnlock() {
+    // only for a vault the user enabled; a cancelled prompt is not repeated until the user taps Unlock
+    if (locked && vault && !authBusy && Date.now() - lastAutoUnlock > 3000) { lastAutoUnlock = Date.now(); unlock(); }
+  }
   function resume() {
+    if (locked) { autoUnlock(); return; }
     if (hiddenAt && Date.now() - hiddenAt >= AWAY_MS) visit = true;
     if (last && Date.now() - last.computedAt > 2 * REFRESH_MS) renderStatus(false);
     refresh();
   }
   document.addEventListener('visibilitychange', function () {
-    if (document.visibilityState === 'hidden') hiddenAt = Date.now();
-    else resume();
+    if (document.visibilityState === 'hidden') {
+      hiddenAt = Date.now();
+      // vault on: lock as soon as the app leaves the screen (not during our own passkey prompt)
+      if (vault && !locked && !authBusy) lock();
+    } else resume();
   });
   window.addEventListener('pageshow', function (e) { if (e.persisted) resume(); });
   setInterval(function () { if (document.visibilityState === 'visible') refresh(); }, REFRESH_MS);
   $('status').addEventListener('click', function () { refresh(); });
+  $('unlockBtn').addEventListener('click', function () { lastAutoUnlock = Date.now(); unlock(); });
 
   // ---------- holding editor ----------
   var sheet = $('sheet'), input = $('amount'), errorEl = $('amountError');
+  var vaultSwitch = $('vaultSwitch'), vaultNote = $('vaultNote');
+  function showVaultState(note) {
+    vaultSwitch.setAttribute('aria-checked', vault ? 'true' : 'false');
+    var unavailable = !vault && load(UNAVAILABLE_KEY);
+    vaultSwitch.disabled = !!unavailable || authBusy;
+    vaultNote.textContent = note || (vault ? T.vaultOn : unavailable ? T.vaultUnavailable : T.vaultOff);
+  }
   function openSheet() {
+    if (locked) return;
     input.value = amount || ''; errorEl.textContent = '';
+    showVaultState();
+    if (!vault && !load(UNAVAILABLE_KEY)) precheck().then(function (reason) {
+      // only facts that need no prompt; nothing is stored, so a later browser/OS update can enable it
+      if (reason && !vault) { vaultSwitch.disabled = true; vaultNote.textContent = T.vaultUnavailable; }
+    });
     sheet.classList.add('open');
     setTimeout(function () { input.focus(); }, 60);
   }
@@ -505,26 +799,52 @@
     var v = GoldCalc.normalizeAmount(input.value);
     if (!v) { errorEl.textContent = T.error; return; }
     var wasFirst = !amount;
-    amount = v; window.goldState.amount = v;
-    save(AMOUNT_KEY, v);
+    amount = v;
     showHolding();
     document.body.classList.remove('first');
-    if (wasFirst) { visit = true; firstEntry = true; }
-    else if (last) {
+    if (wasFirst) { visit = true; firstEntry = true; seen = null; }
+    else {
       // same quotes, new holding: keeps the quotes' original timestamps and freshness; no coins for an edit
-      var r = GoldCalc.goldGrams(last.jasmy.price, last.gold.price, v);
-      last.grams2 = r.grams2; last.grams18 = r.grams18; last.portfolioUsd = r.portfolioUsd; last.jasmyAmount = v;
-      save(STORE_KEY, last);
-      seen = { grams18: r.grams18, amount: v, at: Date.now() }; save(SEEN_KEY, seen);
-      setGrams(r.grams2, shownNumber(), 600);
+      deriveLast();
+      if (last) { seen = { grams18: last.grams18, at: Date.now() }; setGrams(last.grams2, shownNumber(), 600); }
+      else seen = null;
     }
+    persistHolding();
     sheet.classList.remove('open'); input.blur();
     refresh();
   });
 
+  vaultSwitch.addEventListener('click', function () {
+    if (authBusy || !amount) return;
+    authBusy = true;
+    var turningOn = !vault;
+    showVaultState(T.vaultChecking);
+    (turningOn ? enableVault() : disableVault()).then(function () {
+      authBusy = false; showVaultState();
+    }, function (err) {
+      authBusy = false;
+      showVaultState(err instanceof Unavailable && turningOn ? T.vaultUnavailable : T.vaultFailed);
+    });
+  });
+
+  function erase() {
+    if (!confirm(T.eraseConfirm)) return;
+    var credId = vault && vault.credId;
+    eraseAllStored();
+    var signalled = credId ? signalRemoved(credId) : true;
+    amount = null; seen = null; last = null; quotes = null; vault = null; vaultKey = null;
+    if (!signalled) alert(T.passkeyLeft);
+    location.reload();
+  }
+  $('eraseBtn').addEventListener('click', erase);
+  $('lockErase').addEventListener('click', erase);
+
   // ---------- start ----------
   showHolding();
-  if (!amount) {
+  if (locked) {
+    lock();
+    autoUnlock();
+  } else if (!amount) {
     document.body.classList.add('first');
     renderStatus(null);
     setTimeout(openSheet, reduceMotion ? 0 : 700);

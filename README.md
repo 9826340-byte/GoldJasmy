@@ -12,7 +12,18 @@ Install: iPhone — Safari → Share → *Add to Home Screen*. Android — Chrom
 ## Privacy
 - Your JASMY amount is stored **only on your device** (browser storage). No account, no server,
   no analytics, no cookies.
-- The app only requests public prices directly from the sources below.
+- The app only requests public prices directly from the sources below. Requests carry no user data.
+- Nothing derived from your amount (gold grams, USD value) is stored; it is computed on screen.
+
+### Vault Protection (optional, off by default)
+Turn it on in the amount editor. Your amount (and the last value you saw) is then encrypted on the
+device with AES-256-GCM. The key is derived (HKDF-SHA-256) from a passkey on this device via the
+WebAuthn PRF extension and is never stored; it exists in memory only after your screen lock
+(biometrics or device passcode) has verified you. The app locks whenever it leaves the screen.
+
+It is enabled only if this device actually returns a passkey PRF key during setup (e.g. Safari 18+ with
+iCloud Keychain, Chrome with Google Password Manager). Otherwise it is shown as not available and your
+amount stays unencrypted on the device. *Erase Vault Data* removes everything the app stored.
 
 ## How it is calculated
 ```
@@ -40,5 +51,6 @@ the token. Not financial advice.
 ## Development
 No build step — static files.
 - `node test.js` — calculation tests (checked against independent .NET decimal results)
+- `node test-vault.js` — vault encryption tests
 - `node dev-server.js` — local preview at http://localhost:8731
 - `make-icons.html` (via the dev server) — re-renders the icons from the vector bar in `art.js`
